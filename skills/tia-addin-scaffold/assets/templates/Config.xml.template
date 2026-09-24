@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<PackageConfiguration xmlns="http://www.siemens.com/automation/Openness/AddIn/Publisher/V{{TiaVersion}}">
+  <Author>{{Author}}</Author>
+  <Description>{{Description}}</Description>
+  <AddInVersion>{{AddInVersion}}</AddInVersion>
+  <Product>
+    <Name>{{ProductName}}</Name>
+    <Id>{{ProductId}}</Id>
+    <Version>{{ProductVersion}}</Version>
+  </Product>
+  <FeatureAssembly>
+    <AssemblyInfo>
+      <Assembly>{{ProjectName}}.dll</Assembly>
+      <Pdb>{{ProjectName}}.pdb</Pdb>
+    </AssemblyInfo>
+  </FeatureAssembly>
+  <RequiredPermissions>
+    <TIAPermissions>
+      <{{TiaPermission}} />
+    </TIAPermissions>
+{{PermissionsBlock}}
+  </RequiredPermissions>
+{{CertificatesBlock}}
+  <AddInTimeoutConfiguration>
+    <ActivationTimeout>5000</ActivationTimeout>
+    <ContextMenuTimeout>2000</ContextMenuTimeout>
+  </AddInTimeoutConfiguration>
+</PackageConfiguration>

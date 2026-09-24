@@ -1,0 +1,66 @@
+<Project Sdk="{{ProjectSdk}}">
+
+  <PropertyGroup>
+    <TiaVersion>{{TiaVersion}}</TiaVersion>
+    <TiaPortalLocation Condition="'$(TiaPortalLocation)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Siemens\Automation\_InstalledSW\TIAP$(TiaVersion)\Global', 'Path', '', RegistryView.Registry64, RegistryView.Registry32))</TiaPortalLocation>
+    <TiaAddInApiPath>$(TiaPortalLocation)\PublicAPI\V$(TiaVersion)\net48</TiaAddInApiPath>
+    <TiaAddInPublisher>$(TiaPortalLocation)\PublicAPI\V$(TiaVersion)\Siemens.Engineering.AddIn.Publisher.exe</TiaAddInPublisher>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RootNamespace>{{RootNamespace}}</RootNamespace>
+    <AssemblyName>{{ProjectName}}</AssemblyName>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Product>{{ProductName}}</Product>
+    <Company>{{Company}}</Company>
+    <Copyright>{{Copyright}}</Copyright>
+    <Description>{{Description}}</Description>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+{{UiFrameworkProperties}}
+  </PropertyGroup>
+
+  <Target Name="ValidateTiaPortalLocation" BeforeTargets="BeforeResolveReferences">
+    <Error Condition="'$(TiaPortalLocation)' == ''"
+           Text="TIA Portal V$(TiaVersion) was not found. Registry key HKLM\SOFTWARE\Siemens\Automation\_InstalledSW\TIAP$(TiaVersion)\Global could not be read. Set the TiaPortalLocation property manually." />
+    <Error Condition="!Exists('$(TiaAddInApiPath)')"
+           Text="The Openness Add-In API folder was not found: $(TiaAddInApiPath)" />
+    <Message Text="TiaPortalLocation = $(TiaPortalLocation)" Importance="high" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="Siemens.Engineering.AddIn.Base">
+      <HintPath>$(TiaAddInApiPath)\Siemens.Engineering.AddIn.Base.dll</HintPath>
+      <Private>False</Private>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="Siemens.Engineering.AddIn.Utilities">
+      <HintPath>$(TiaAddInApiPath)\Siemens.Engineering.AddIn.Utilities.dll</HintPath>
+      <Private>False</Private>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="Siemens.Engineering.AddIn.Permissions">
+      <HintPath>$(TiaAddInApiPath)\Siemens.Engineering.AddIn.Permissions.dll</HintPath>
+      <Private>False</Private>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="Siemens.Engineering.Base">
+      <HintPath>$(TiaAddInApiPath)\Siemens.Engineering.Base.dll</HintPath>
+      <Private>False</Private>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+{{AdditionalEngineeringReferences}}
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Config.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="PublishAddin" AfterTargets="Build">
+    <Exec Command="&quot;$(TiaAddInPublisher)&quot; -f &quot;$(ProjectDir)$(OutDir)Config.xml&quot; -v -c -l &quot;$(ProjectDir)$(OutDir)publisher_log.txt&quot;" />
+  </Target>
+
+</Project>

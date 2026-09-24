@@ -1,0 +1,52 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Debug TIA Portal Add-In",
+      "configurations": [
+        "Debug Launch TIA Portal",
+        "Debug additional TIA Portal Add-In host process 1",
+        "Debug additional TIA Portal Add-In host process 2",
+        "Debug additional TIA Portal Add-In host process 3",
+        "Debug additional TIA Portal Add-In host process 4"
+      ]
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Debug Launch TIA Portal",
+      "type": "clr",
+      "request": "attach",
+      "processId": "${command:addindebugging.launch_debug_starter}",
+      "presentation": { "hidden": true, "group": "Debug TIA Portal Add-In", "order": 0 }
+    },
+    {
+      "name": "Debug additional TIA Portal Add-In host process 1",
+      "type": "clr",
+      "request": "attach",
+      "processId": "${command:addindebugging.procid_of_addinhost1}",
+      "presentation": { "hidden": true, "group": "Debug TIA Portal Add-In", "order": 1 }
+    },
+    {
+      "name": "Debug additional TIA Portal Add-In host process 2",
+      "type": "clr",
+      "request": "attach",
+      "processId": "${command:addindebugging.procid_of_addinhost2}",
+      "presentation": { "hidden": true, "group": "Debug TIA Portal Add-In", "order": 2 }
+    },
+    {
+      "name": "Debug additional TIA Portal Add-In host process 3",
+      "type": "clr",
+      "request": "attach",
+      "processId": "${command:addindebugging.procid_of_addinhost3}",
+      "presentation": { "hidden": true, "group": "Debug TIA Portal Add-In", "order": 3 }
+    },
+    {
+      "name": "Debug additional TIA Portal Add-In host process 4",
+      "type": "clr",
+      "request": "attach",
+      "processId": "${command:addindebugging.procid_of_addinhost4}",
+      "presentation": { "hidden": true, "group": "Debug TIA Portal Add-In", "order": 4 }
+    }
+  ]
+}

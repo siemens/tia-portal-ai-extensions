@@ -1,0 +1,23 @@
+## Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio / VS Code
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## TIA Portal Openness add-in artefacts
+*.addin
+publisher_log.txt
+build_log.txt
+TiaPortalLocation.log
+
+## NuGet
+*.nupkg
+packages/
+!packages/build/

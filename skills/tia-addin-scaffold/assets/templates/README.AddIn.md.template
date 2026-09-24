@@ -1,0 +1,47 @@
+# {{ProductName}}
+
+{{Description}}
+
+This is an add-in for Siemens TIA Portal. Once installed it adds its own entries to the
+TIA Portal context menus; there is nothing to start separately.
+
+## Requirements
+
+- TIA Portal V{{TiaVersion}} or higher
+- TIA Portal Openness must be installed (it is part of the TIA Portal setup)
+- Your Windows user must be a member of the local group `Siemens TIA Openness`
+{{AdditionalRequirements}}
+
+## Installation
+
+Choose either of the two equivalent ways to register the add-in with TIA Portal:
+
+- **Copy manually:** close TIA Portal, then copy `{{ProjectName}}.addin` into your
+  per-user add-in folder, for example
+  `C:\Users\<your user name>\AppData\Roaming\Siemens\Automation\Portal V{{TiaVersion}}\UserAddIns`.
+- **Import from within TIA Portal:** start TIA Portal, open **Options → Add-Ins**, and use
+  the **Import** action to select `{{ProjectName}}.addin`. TIA Portal copies it into the
+  same per-user folder for you.
+
+Either way, finish the activation:
+
+1. Start TIA Portal (if not already running) and open a project.
+2. Open **Options → Add-Ins**. The add-in `{{ProductName}}` is listed there with the
+   status *Deactivated*.
+3. Set the status to *Activated* and confirm the security prompt.
+
+The add-in stays activated for this TIA Portal installation until you deactivate it again.
+
+## Usage
+
+{{UsageSection}}
+
+## Notes and limitations
+
+{{NotesSection}}
+
+## Version
+
+{{ProductVersion}} — for TIA Portal V{{TiaVersion}}
+
+Author: {{Author}}

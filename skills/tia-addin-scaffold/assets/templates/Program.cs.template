@@ -1,0 +1,110 @@
+using System;
+using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.Win32;
+
+namespace {{RootNamespace}}
+{
+    internal static class Program
+    {
+        private const int TiaVersion = {{TiaVersion}};
+
+        private static string _opennessAssemblyDirectory;
+
+        /// <summary>
+        /// Entry point. Registers the assembly resolver BEFORE any Openness type is touched.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Main(string[] args)
+        {
+            _opennessAssemblyDirectory = ResolveOpennessAssemblyDirectory();
+            if (_opennessAssemblyDirectory == null)
+            {
+                Console.Error.WriteLine($"TIA Portal V{TiaVersion} wurde nicht gefunden.");
+                return 2;
+            }
+
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
+
+            try
+            {
+                return Run(args);
+            }
+            catch (Exception exception)
+            {
+                Console.Error.WriteLine($"Fehler: {exception.Message}");
+                return 1;
+            }
+        }
+
+        /// <summary>
+        /// All Openness API usage lives here. Kept in a separate, non-inlined method so the
+        /// JIT cannot bind Siemens.Engineering types before the resolver above is installed.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Run(string[] args)
+        {
+            // Attach to a running TIA Portal instance if there is one, otherwise start a new one.
+            //
+            // IMPORTANT: never call Dispose() on a TiaPortalProcess obtained from
+            // TiaPortal.GetProcesses() - in V21 this tears down the live TIA Portal instance.
+            foreach (var process in Siemens.Engineering.TiaPortal.GetProcesses())
+            {
+                using (var tiaPortal = process.Attach())
+                {
+                    foreach (var project in tiaPortal.Projects)
+                    {
+                        Console.WriteLine($"Projekt: {project.Name}");
+                    }
+                }
+
+                return 0;
+            }
+
+            using (var tiaPortal = new Siemens.Engineering.TiaPortal(
+                       Siemens.Engineering.TiaPortalMode.WithUserInterface))
+            {
+                Console.WriteLine("Keine laufende TIA Portal Instanz gefunden - neue Instanz gestartet.");
+                Console.WriteLine($"Offene Projekte: {tiaPortal.Projects.Count}");
+            }
+
+            return 0;
+        }
+
+        private static Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
+        {
+            var assemblyName = new AssemblyName(args.Name).Name;
+            if (!assemblyName.StartsWith("Siemens.Engineering", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var path = Path.Combine(_opennessAssemblyDirectory, assemblyName + ".dll");
+            return File.Exists(path) ? Assembly.LoadFrom(path) : null;
+        }
+
+        private static string ResolveOpennessAssemblyDirectory()
+        {
+            var installPath = ReadInstallPath(RegistryView.Registry64)
+                              ?? ReadInstallPath(RegistryView.Registry32);
+            if (string.IsNullOrEmpty(installPath))
+            {
+                return null;
+            }
+
+            var apiPath = Path.Combine(installPath, "PublicAPI", "V" + TiaVersion, "net48");
+            return Directory.Exists(apiPath) ? apiPath : null;
+        }
+
+        private static string ReadInstallPath(RegistryView view)
+        {
+            using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view))
+            using (var key = baseKey.OpenSubKey(
+                       $@"SOFTWARE\Siemens\Automation\_InstalledSW\TIAP{TiaVersion}\Global"))
+            {
+                return key?.GetValue("Path") as string;
+            }
+        }
+    }
+}

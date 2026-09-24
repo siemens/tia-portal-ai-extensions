@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "tia-portal-openness-development-kit",
+  "description": "Utilities for TIA Portal Openness",
+  "version": "1.0.0",
+  "author": {
+    "name": "Openness Team"
+  },
+  "license": "MIT",
+  "keywords": [
+    "openness"
+  ]
+}
