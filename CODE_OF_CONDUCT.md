@@ -68,6 +68,4 @@ This Code of Conduct is adapted from the
 [Contributor Covenant](https://contributor-covenant.org/), versions
 [1.4](https://www.contributor-covenant.org/version/1/4/code-of-conduct/code_of_conduct.md)
 and
-[2.0](https://www.contributor-covenant.org/version/2/0/code_of_conduct/code_of_conduct.md),
-and follows the version used by the
-[TIA Portal Openness Code Snippets](https://github.com/siemens/tia-portal-openness-code-snippets).
+[2.0](https://www.contributor-covenant.org/version/2/0/code-of-conduct/code_of_conduct.md).
