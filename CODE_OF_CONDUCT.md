@@ -54,9 +54,9 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, security-sensitive, or otherwise unacceptable
-behaviour may be reported to the community leaders responsible for enforcement
-at <tech.team.motioncontrol@siemens.com>. All reports will be reviewed and
+Instances of abusive, harassing, or otherwise unacceptable behaviour may be
+reported to the community leaders responsible for enforcement at
+<tech.team.motioncontrol@siemens.com>. All reports will be reviewed and
 investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
