@@ -57,7 +57,7 @@ The marketplace flow above is the release installation path.
 | --- | --- |
 | GitHub Copilot CLI | Installation and discovery of all 32 skills verified with version 1.0.86 |
 | Agent Plugins | `plugin.json` follows Agent Plugins 1.0 |
-| Copilot marketplace | `.github/plugin/plugin.json` contains package metadata |
+| Copilot marketplace | The repository catalog points to this package |
 | Agent Skills | Skills use the standard `skills/<name>/SKILL.md` layout within this package |
 | TIA Portal | Content and SDK paths are based on TIA Portal V21; other versions are not verified |
 | Operating system | Windows is required for TIA Portal and the Openness API |

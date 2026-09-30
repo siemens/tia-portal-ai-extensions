@@ -16,9 +16,6 @@ SEMVER_RE = re.compile(
     r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
     r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
 )
-INTERNAL_VERSION_RE = re.compile(
-    r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$"
-)
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)]+)\)")
 RESOURCE_RE = re.compile(r"`((?:references|assets)/[^`\n]+)`")
 PORTABLE_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
@@ -89,15 +86,6 @@ PORTABLE_MANIFEST_FIELDS = {
     "license",
     "keywords",
     "extensions",
-}
-INTERNAL_MANIFEST_FIELDS = {
-    "name",
-    "description",
-    "version",
-    "author",
-    "license",
-    "keywords",
-    "skills",
 }
 
 
@@ -497,58 +485,6 @@ def validate_portable_manifest(
     return manifest
 
 
-def validate_internal_manifest(
-    manifest_path: Path, portable_manifest: dict | None, errors: list[str]
-) -> None:
-    relative = manifest_path.relative_to(ROOT)
-    if not manifest_path.is_file():
-        errors.append(f"missing internal plugin manifest: {relative}")
-        return
-
-    manifest = load_json(manifest_path, errors)
-    if manifest is None:
-        return
-
-    unknown_fields = sorted(set(manifest) - INTERNAL_MANIFEST_FIELDS)
-    if unknown_fields:
-        errors.append(
-            f"{relative}: unsupported top-level fields: {', '.join(unknown_fields)}"
-        )
-
-    skills = manifest.get("skills")
-    if skills != ["skills/"]:
-        errors.append(f"{relative}: skills must be exactly ['skills/']")
-
-    internal_version = manifest.get("version")
-    if not isinstance(internal_version, str) or not INTERNAL_VERSION_RE.fullmatch(
-        internal_version
-    ):
-        errors.append(f"{relative}: version must be four-part numeric SemVer")
-    elif (
-        portable_manifest is not None
-        and internal_version.endswith(".0")
-        and internal_version[:-2] != portable_manifest.get("version")
-    ):
-        errors.append(
-            f"{relative}: plugin version differs from portable plugin.json"
-        )
-    elif (
-        portable_manifest is not None
-        and not internal_version.endswith(".0")
-    ):
-        errors.append(
-            f"{relative}: internal version must align with portable version "
-            "after removing a trailing .0"
-        )
-
-    if portable_manifest is not None:
-        for field in ("name", "description", "author", "license", "keywords"):
-            if manifest.get(field) != portable_manifest.get(field):
-                errors.append(
-                    f"{relative}: plugin {field} differs from portable plugin.json"
-                )
-
-
 def resolve_plugin_source(
     source: object, marketplace_relative: Path, errors: list[str]
 ) -> Path | None:
@@ -591,11 +527,6 @@ def validate_manifests(errors: list[str]) -> None:
             portable_path, plugin_directory, errors
         )
         plugin_manifests[plugin_directory.resolve()] = portable_manifest
-        validate_internal_manifest(
-            plugin_directory / ".github" / "plugin" / "plugin.json",
-            portable_manifest,
-            errors,
-        )
 
     marketplace_path = ROOT / ".github" / "plugin" / "marketplace.json"
     if not marketplace_path.is_file():

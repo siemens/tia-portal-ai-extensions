@@ -81,25 +81,6 @@ class ValidateSkillsTests(unittest.TestCase):
             "keywords": ["example"],
         }
         self.write(f"{package}/plugin.json", json.dumps(manifest))
-        self.write(
-            f"{package}/.github/plugin/plugin.json",
-            json.dumps(
-                {
-                    **{
-                        field: manifest[field]
-                        for field in (
-                            "name",
-                            "description",
-                            "author",
-                            "license",
-                            "keywords",
-                        )
-                    },
-                    "version": f"{manifest['version']}.0",
-                    "skills": ["skills/"],
-                }
-            ),
-        )
 
         marketplace_path = VALIDATOR.ROOT / ".github" / "plugin" / "marketplace.json"
         if marketplace_path.exists():
@@ -295,37 +276,7 @@ class ValidateSkillsTests(unittest.TestCase):
             errors,
         )
 
-    def test_internal_manifest_version_must_match_portable_version(self):
-        self.write_manifests()
-        internal_manifest_path = (
-            VALIDATOR.ROOT
-            / "openness_development"
-            / ".github"
-            / "plugin"
-            / "plugin.json"
-        )
-        internal_manifest = json.loads(
-            internal_manifest_path.read_text(encoding="utf-8")
-        )
-        internal_manifest["version"] = "2.0.0.0"
-        internal_manifest_path.write_text(
-            json.dumps(internal_manifest),
-            encoding="utf-8",
-            newline="\n",
-        )
-        errors = []
-
-        VALIDATOR.validate_manifests(errors)
-
-        self.assertTrue(
-            any(
-                "plugin version differs from portable plugin.json" in error
-                for error in errors
-            ),
-            errors,
-        )
-
-    def test_valid_minimal_repository_passes(self):
+    def test_valid_minimal_repository_passes_without_legacy_manifest(self):
         self.write_skill("example-skill", package="example_plugin")
         self.write_manifests(package="example_plugin")
         errors = []

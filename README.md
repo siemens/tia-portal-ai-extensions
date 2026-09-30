@@ -24,4 +24,4 @@ compatibility details, prerequisites, and the complete skill list.
 
 - `.github/plugin/marketplace.json` lists the installable plugins.
 - Each plugin package, such as `openness_development/`, contains its own
-  manifests, documentation, and `skills/` directory.
+  manifest, documentation, and `skills/` directory.

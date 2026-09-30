@@ -48,11 +48,8 @@ Report confidential or security-sensitive concerns as described in
 
 ## Add a plugin
 
-- Create a top-level package directory with `plugin.json`, a
-  `.github/plugin/plugin.json` manifest, a `README.md`, and a `skills/`
-  directory.
-- Keep the portable manifest's three-part version and the marketplace
-  manifest's four-part version aligned by a trailing `.0`.
+- Create a top-level package directory with a portable `plugin.json`, a
+  `README.md`, and a `skills/` directory.
 - Add the package to `.github/plugin/marketplace.json`, using the package
   directory as its `source`.
 - Add the plugin identity and approved skill names to the corresponding
