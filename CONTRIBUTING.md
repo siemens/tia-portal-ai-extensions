@@ -32,11 +32,12 @@ Examples:
 
 ## Add a skill
 
-- Create `skills/<skill-name>/SKILL.md`.
+- Create `openness_development/skills/<skill-name>/SKILL.md`.
 - Use a lowercase, hyphen-separated skill name.
-- Add the skill to `EXPECTED_SKILLS` in
+- Add the skill to the `openness_development` entry in
+  `EXPECTED_SKILLS_BY_PLUGIN` in
   `.github/scripts/validate_skills.py`.
-- Add it to the skill list in `README.md`.
+- Add it to the skill list in `openness_development/README.md`.
 - Include only information and examples that may be published.
 
 Do not include credentials, confidential information, internal-only links, or
@@ -44,3 +45,16 @@ material that cannot be distributed publicly.
 
 Report confidential or security-sensitive concerns as described in
 [SECURITY.md](SECURITY.md).
+
+## Add a plugin
+
+- Create a top-level package directory with `plugin.json`, a
+  `.github/plugin/plugin.json` manifest, a `README.md`, and a `skills/`
+  directory.
+- Keep the portable manifest's three-part version and the marketplace
+  manifest's four-part version aligned by a trailing `.0`.
+- Add the package to `.github/plugin/marketplace.json`, using the package
+  directory as its `source`.
+- Add the plugin identity and approved skill names to the corresponding
+  mappings in `.github/scripts/validate_skills.py`.
+- Run the validation script and regression tests before opening a pull request.

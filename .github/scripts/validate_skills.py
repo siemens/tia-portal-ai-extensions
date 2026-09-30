@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Validate the standalone Agent Skills plugin repository."""
+"""Validate plugin packages, Agent Skills, and their marketplace catalog."""
 
 from __future__ import annotations
 
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +15,9 @@ PLUGIN_NAME_RE = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?
 SEMVER_RE = re.compile(
     r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
     r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
+)
+INTERNAL_VERSION_RE = re.compile(
+    r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$"
 )
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*]\(([^)]+)\)")
 RESOURCE_RE = re.compile(r"`((?:references|assets)/[^`\n]+)`")
@@ -69,6 +72,12 @@ EXPECTED_SKILLS = frozenset(
         "tia-addin-scaffold",
     }
 )
+EXPECTED_PLUGIN_IDENTITIES = {
+    "openness_development": (EXPECTED_PLUGIN_NAME, EXPECTED_PLUGIN_VERSION),
+}
+EXPECTED_SKILLS_BY_PLUGIN = {
+    "openness_development": EXPECTED_SKILLS,
+}
 PORTABLE_MANIFEST_FIELDS = {
     "$schema",
     "name",
@@ -80,6 +89,15 @@ PORTABLE_MANIFEST_FIELDS = {
     "license",
     "keywords",
     "extensions",
+}
+INTERNAL_MANIFEST_FIELDS = {
+    "name",
+    "description",
+    "version",
+    "author",
+    "license",
+    "keywords",
+    "skills",
 }
 
 
@@ -93,6 +111,20 @@ def load_json(path: Path, errors: list[str]) -> dict | None:
         errors.append(f"{path.relative_to(ROOT)}: top-level JSON must be an object")
         return None
     return value
+
+
+def discover_plugin_directories() -> list[Path]:
+    if not ROOT.is_dir():
+        return []
+    return sorted(
+        (
+            path
+            for path in ROOT.iterdir()
+            if path.is_dir()
+            and ((path / "plugin.json").is_file() or (path / "skills").is_dir())
+        ),
+        key=lambda path: path.name,
+    )
 
 
 FrontmatterValue = str | dict[str, str]
@@ -268,103 +300,138 @@ def validate_dependency_cycles(graph: dict[str, set[str]], errors: list[str]) ->
 def validate_skills(
     errors: list[str],
     warnings: list[str],
-    expected_skills: frozenset[str] | None = EXPECTED_SKILLS,
+    expected_skills_by_plugin: dict[str, frozenset[str]] | None = (
+        EXPECTED_SKILLS_BY_PLUGIN
+    ),
 ) -> None:
-    names: dict[str, Path] = {}
-    graph: dict[str, set[str]] = {}
-    skill_paths = sorted(ROOT.glob("skills/*/SKILL.md"))
-
-    if not skill_paths:
-        errors.append("no Agent Skills found under skills/*/SKILL.md")
-
-    for path in skill_paths:
-        frontmatter, text = parse_frontmatter(path, errors)
-        relative = path.relative_to(ROOT)
-        name_value = frontmatter.get("name", "")
-        description_value = frontmatter.get("description", "")
-        compatibility_value = frontmatter.get("compatibility", "")
-        metadata_value = frontmatter.get("metadata", {})
-        name = name_value if isinstance(name_value, str) else ""
-        description = description_value if isinstance(description_value, str) else ""
-        compatibility = (
-            compatibility_value if isinstance(compatibility_value, str) else ""
-        )
-        metadata = metadata_value if isinstance(metadata_value, dict) else {}
-
-        unknown_fields = sorted(set(frontmatter) - ALLOWED_SKILL_FIELDS)
-        if unknown_fields:
-            errors.append(
-                f"{relative}: unsupported skill frontmatter fields: "
-                f"{', '.join(unknown_fields)}"
-            )
-        if "metadata" in frontmatter and not isinstance(metadata_value, dict):
-            errors.append(f"{relative}: metadata must be a mapping")
-
-        if not NAME_RE.fullmatch(name) or len(name) > 64:
-            errors.append(f"{relative}: invalid or missing skill name: {name!r}")
-        elif name != path.parent.name:
-            errors.append(
-                f"{relative}: name {name!r} does not match directory "
-                f"{path.parent.name!r}"
-            )
-        elif name in names:
-            errors.append(
-                f"{relative}: duplicate skill name also used by "
-                f"{names[name].relative_to(ROOT)}"
-            )
-        else:
-            names[name] = path
-
-        if not description or len(description) > 1024:
-            errors.append(f"{relative}: description must contain 1-1024 characters")
-        if compatibility and len(compatibility) > 500:
-            errors.append(f"{relative}: compatibility exceeds 500 characters")
-        if len(text.splitlines()) > 500:
-            warnings.append(f"{relative}: SKILL.md exceeds the recommended 500 lines")
-
-        raw_dependencies = metadata.get(DEPENDENCY_METADATA_KEY, "")
-        graph.setdefault(name, set())
-        for dependency in raw_dependencies.split(","):
-            dependency = dependency.strip()
-            if dependency:
-                graph[name].add(dependency)
-
-        validate_resources(path, text, errors)
-
-    for name, dependencies in sorted(graph.items()):
-        for dependency in sorted(dependencies):
-            if dependency not in names:
-                source_path = names.get(name, ROOT / "skills" / name / "SKILL.md")
-                errors.append(
-                    f"{source_path.relative_to(ROOT)}: "
-                    f"unknown dependency {dependency!r}"
-                )
-
-    validate_dependency_cycles(graph, errors)
-
-    if expected_skills is not None:
-        discovered = set(names)
-        for missing in sorted(expected_skills - discovered):
-            errors.append(f"missing approved skill: {missing}")
-        for unexpected in sorted(discovered - expected_skills):
-            errors.append(f"unexpected skill outside approved list: {unexpected}")
-
-    print(f"Checked {len(skill_paths)} Agent Skills.")
-
-
-def validate_manifests(errors: list[str]) -> None:
-    manifest_path = ROOT / "plugin.json"
-    if not manifest_path.exists():
-        errors.append("missing root Agent Plugins manifest: plugin.json")
-        print("Checked 0 Agent Plugins manifests.")
+    plugin_directories = discover_plugin_directories()
+    if not plugin_directories:
+        errors.append("no plugin package directories found")
+        print("Checked 0 Agent Skills.")
         return
+
+    all_names: dict[str, Path] = {}
+    skill_count = 0
+
+    for plugin_directory in plugin_directories:
+        skill_paths = sorted((plugin_directory / "skills").glob("*/SKILL.md"))
+        skill_count += len(skill_paths)
+        if not skill_paths:
+            errors.append(
+                f"no Agent Skills found under "
+                f"{plugin_directory.relative_to(ROOT)}/skills/*/SKILL.md"
+            )
+
+        names: dict[str, Path] = {}
+        graph: dict[str, set[str]] = {}
+
+        for path in skill_paths:
+            frontmatter, text = parse_frontmatter(path, errors)
+            relative = path.relative_to(ROOT)
+            name_value = frontmatter.get("name", "")
+            description_value = frontmatter.get("description", "")
+            compatibility_value = frontmatter.get("compatibility", "")
+            metadata_value = frontmatter.get("metadata", {})
+            name = name_value if isinstance(name_value, str) else ""
+            description = description_value if isinstance(description_value, str) else ""
+            compatibility = (
+                compatibility_value if isinstance(compatibility_value, str) else ""
+            )
+            metadata = metadata_value if isinstance(metadata_value, dict) else {}
+
+            unknown_fields = sorted(set(frontmatter) - ALLOWED_SKILL_FIELDS)
+            if unknown_fields:
+                errors.append(
+                    f"{relative}: unsupported skill frontmatter fields: "
+                    f"{', '.join(unknown_fields)}"
+                )
+            if "metadata" in frontmatter and not isinstance(metadata_value, dict):
+                errors.append(f"{relative}: metadata must be a mapping")
+
+            if not NAME_RE.fullmatch(name) or len(name) > 64:
+                errors.append(f"{relative}: invalid or missing skill name: {name!r}")
+            elif name != path.parent.name:
+                errors.append(
+                    f"{relative}: name {name!r} does not match directory "
+                    f"{path.parent.name!r}"
+                )
+            elif name in names:
+                errors.append(
+                    f"{relative}: duplicate skill name also used by "
+                    f"{names[name].relative_to(ROOT)}"
+                )
+            elif name in all_names:
+                errors.append(
+                    f"{relative}: duplicate skill name across plugins also used by "
+                    f"{all_names[name].relative_to(ROOT)}"
+                )
+                names[name] = path
+            else:
+                names[name] = path
+                all_names[name] = path
+
+            if not description or len(description) > 1024:
+                errors.append(f"{relative}: description must contain 1-1024 characters")
+            if compatibility and len(compatibility) > 500:
+                errors.append(f"{relative}: compatibility exceeds 500 characters")
+            if len(text.splitlines()) > 500:
+                warnings.append(f"{relative}: SKILL.md exceeds the recommended 500 lines")
+
+            raw_dependencies = metadata.get(DEPENDENCY_METADATA_KEY, "")
+            graph.setdefault(name, set())
+            for dependency in raw_dependencies.split(","):
+                dependency = dependency.strip()
+                if dependency:
+                    graph[name].add(dependency)
+
+            validate_resources(path, text, errors)
+
+        for name, dependencies in sorted(graph.items()):
+            for dependency in sorted(dependencies):
+                if dependency not in names:
+                    source_path = names.get(
+                        name,
+                        plugin_directory / "skills" / name / "SKILL.md",
+                    )
+                    errors.append(
+                        f"{source_path.relative_to(ROOT)}: "
+                        f"unknown dependency {dependency!r}"
+                    )
+
+        validate_dependency_cycles(graph, errors)
+
+        if expected_skills_by_plugin is not None:
+            expected_skills = expected_skills_by_plugin.get(plugin_directory.name)
+            if expected_skills is not None:
+                discovered = set(names)
+                for missing in sorted(expected_skills - discovered):
+                    errors.append(
+                        f"missing approved skill in {plugin_directory.name}: {missing}"
+                    )
+                for unexpected in sorted(discovered - expected_skills):
+                    errors.append(
+                        f"unexpected skill outside approved list in "
+                        f"{plugin_directory.name}: {unexpected}"
+                    )
+
+    print(
+        f"Checked {skill_count} Agent Skills across "
+        f"{len(plugin_directories)} plugin package(s)."
+    )
+
+
+def validate_portable_manifest(
+    manifest_path: Path, plugin_directory: Path, errors: list[str]
+) -> dict | None:
+    relative = manifest_path.relative_to(ROOT)
+    if not manifest_path.is_file():
+        errors.append(f"missing Agent Plugins manifest: {relative}")
+        return None
 
     manifest = load_json(manifest_path, errors)
     if manifest is None:
-        print("Checked 1 Agent Plugins manifest.")
-        return
+        return None
 
-    relative = manifest_path.relative_to(ROOT)
     unknown_fields = sorted(set(manifest) - PORTABLE_MANIFEST_FIELDS)
     if unknown_fields:
         errors.append(
@@ -380,18 +447,25 @@ def validate_manifests(errors: list[str]) -> None:
         or not PLUGIN_NAME_RE.fullmatch(name)
     ):
         errors.append(f"{relative}: invalid plugin name: {name!r}")
-    elif name != EXPECTED_PLUGIN_NAME:
-        errors.append(
-            f"{relative}: expected plugin name {EXPECTED_PLUGIN_NAME!r}, found {name!r}"
-        )
+    if isinstance(name, str) and name in {
+        identity[0] for identity in EXPECTED_PLUGIN_IDENTITIES.values()
+    } and plugin_directory.name not in EXPECTED_PLUGIN_IDENTITIES:
+        errors.append(f"{relative}: plugin name is already used by another package")
+
+    expected_identity = EXPECTED_PLUGIN_IDENTITIES.get(plugin_directory.name)
+    if expected_identity is not None:
+        expected_name, expected_version = expected_identity
+        if name != expected_name:
+            errors.append(
+                f"{relative}: expected plugin name {expected_name!r}, found {name!r}"
+            )
 
     version = manifest.get("version")
     if not isinstance(version, str) or not SEMVER_RE.fullmatch(version):
         errors.append(f"{relative}: version must be three-part SemVer")
-    elif version != EXPECTED_PLUGIN_VERSION:
+    elif expected_identity is not None and version != expected_identity[1]:
         errors.append(
-            f"{relative}: expected version {EXPECTED_PLUGIN_VERSION!r}, "
-            f"found {version!r}"
+            f"{relative}: expected version {expected_identity[1]!r}, found {version!r}"
         )
 
     description = manifest.get("description")
@@ -420,17 +494,126 @@ def validate_manifests(errors: list[str]) -> None:
     ):
         errors.append(f"{relative}: keywords must be an array of strings")
 
+    return manifest
+
+
+def validate_internal_manifest(
+    manifest_path: Path, portable_manifest: dict | None, errors: list[str]
+) -> None:
+    relative = manifest_path.relative_to(ROOT)
+    if not manifest_path.is_file():
+        errors.append(f"missing internal plugin manifest: {relative}")
+        return
+
+    manifest = load_json(manifest_path, errors)
+    if manifest is None:
+        return
+
+    unknown_fields = sorted(set(manifest) - INTERNAL_MANIFEST_FIELDS)
+    if unknown_fields:
+        errors.append(
+            f"{relative}: unsupported top-level fields: {', '.join(unknown_fields)}"
+        )
+
+    skills = manifest.get("skills")
+    if skills != ["skills/"]:
+        errors.append(f"{relative}: skills must be exactly ['skills/']")
+
+    internal_version = manifest.get("version")
+    if not isinstance(internal_version, str) or not INTERNAL_VERSION_RE.fullmatch(
+        internal_version
+    ):
+        errors.append(f"{relative}: version must be four-part numeric SemVer")
+    elif (
+        portable_manifest is not None
+        and internal_version.endswith(".0")
+        and internal_version[:-2] != portable_manifest.get("version")
+    ):
+        errors.append(
+            f"{relative}: plugin version differs from portable plugin.json"
+        )
+    elif (
+        portable_manifest is not None
+        and not internal_version.endswith(".0")
+    ):
+        errors.append(
+            f"{relative}: internal version must align with portable version "
+            "after removing a trailing .0"
+        )
+
+    if portable_manifest is not None:
+        for field in ("name", "description", "author", "license", "keywords"):
+            if manifest.get(field) != portable_manifest.get(field):
+                errors.append(
+                    f"{relative}: plugin {field} differs from portable plugin.json"
+                )
+
+
+def resolve_plugin_source(
+    source: object, marketplace_relative: Path, errors: list[str]
+) -> Path | None:
+    if not isinstance(source, str) or not source.strip() or "\\" in source:
+        errors.append(
+            f"{marketplace_relative}: plugin source must be a relative POSIX path"
+        )
+        return None
+
+    source_path = PurePosixPath(source)
+    if (
+        source_path.is_absolute()
+        or not source_path.parts
+        or any(part == ".." for part in source_path.parts)
+    ):
+        errors.append(
+            f"{marketplace_relative}: plugin source must identify a package "
+            "inside the repository"
+        )
+        return None
+
+    resolved = (ROOT / Path(*source_path.parts)).resolve()
+    try:
+        resolved.relative_to(ROOT.resolve())
+    except ValueError:
+        errors.append(
+            f"{marketplace_relative}: plugin source leaves the repository"
+        )
+        return None
+    return resolved
+
+
+def validate_manifests(errors: list[str]) -> None:
+    plugin_directories = discover_plugin_directories()
+    plugin_manifests: dict[Path, dict | None] = {}
+
+    for plugin_directory in plugin_directories:
+        portable_path = plugin_directory / "plugin.json"
+        portable_manifest = validate_portable_manifest(
+            portable_path, plugin_directory, errors
+        )
+        plugin_manifests[plugin_directory.resolve()] = portable_manifest
+        validate_internal_manifest(
+            plugin_directory / ".github" / "plugin" / "plugin.json",
+            portable_manifest,
+            errors,
+        )
+
     marketplace_path = ROOT / ".github" / "plugin" / "marketplace.json"
-    if not marketplace_path.exists():
+    if not marketplace_path.is_file():
         errors.append(
             "missing Copilot marketplace manifest: .github/plugin/marketplace.json"
         )
-        print("Checked 1 Agent Plugins manifest and 0 marketplace manifests.")
+        print(
+            f"Checked {len(plugin_directories)} plugin package(s) and "
+            "0 marketplace manifests."
+        )
         return
 
     marketplace = load_json(marketplace_path, errors)
     if marketplace is None:
-        print("Checked 1 Agent Plugins manifest and 1 marketplace manifest.")
+        print(
+            f"Checked {len(plugin_directories)} plugin package(s) and "
+            "1 marketplace manifest."
+        )
         return
 
     marketplace_relative = marketplace_path.relative_to(ROOT)
@@ -450,37 +633,67 @@ def validate_manifests(errors: list[str]) -> None:
     plugins = marketplace.get("plugins")
     if not isinstance(plugins, list) or not plugins:
         errors.append(f"{marketplace_relative}: plugins must be a non-empty array")
-    else:
-        matching_plugins = [
-            plugin
-            for plugin in plugins
-            if isinstance(plugin, dict) and plugin.get("name") == EXPECTED_PLUGIN_NAME
-        ]
-        if len(plugins) != 1 or len(matching_plugins) != 1:
-            errors.append(
-                f"{marketplace_relative}: must expose exactly the approved plugin"
-            )
-        else:
-            plugin = matching_plugins[0]
-            if plugin.get("source") not in {".", "./"}:
-                errors.append(
-                    f"{marketplace_relative}: plugin source must be repository root"
-                )
-            for field in (
-                "name",
-                "description",
-                "version",
-                "author",
-                "license",
-                "keywords",
-            ):
-                if plugin.get(field) != manifest.get(field):
-                    errors.append(
-                        f"{marketplace_relative}: plugin {field} differs "
-                        "from plugin.json"
-                    )
+        plugins = []
 
-    print("Checked 1 Agent Plugins manifest and 1 marketplace manifest.")
+    package_directories = set(plugin_manifests)
+    entries_by_source: dict[Path, dict] = {}
+    entry_names: set[str] = set()
+    entry_sources: set[Path] = set()
+
+    for index, plugin in enumerate(plugins):
+        entry_context = f"{marketplace_relative}: plugins[{index}]"
+        if not isinstance(plugin, dict):
+            errors.append(f"{entry_context}: entry must be an object")
+            continue
+
+        name = plugin.get("name")
+        if not isinstance(name, str) or not name:
+            errors.append(f"{entry_context}: name must be a non-empty string")
+        elif name in entry_names:
+            errors.append(f"{entry_context}: duplicate plugin name {name!r}")
+        else:
+            entry_names.add(name)
+
+        source = resolve_plugin_source(plugin.get("source"), marketplace_relative, errors)
+        if source is None:
+            continue
+        if source in entry_sources:
+            errors.append(f"{entry_context}: duplicate plugin source {plugin['source']!r}")
+            continue
+        entry_sources.add(source)
+        if source not in package_directories:
+            errors.append(
+                f"{entry_context}: source {plugin['source']!r} does not identify "
+                "a plugin package"
+            )
+            continue
+        entries_by_source[source] = plugin
+
+        manifest = plugin_manifests.get(source)
+        if manifest is None:
+            continue
+        if name != manifest.get("name"):
+            errors.append(
+                f"{entry_context}: plugin name differs from its plugin.json"
+            )
+        for field in ("description", "version", "author", "license", "keywords"):
+            if plugin.get(field) != manifest.get(field):
+                errors.append(
+                    f"{entry_context}: plugin {field} differs from plugin.json"
+                )
+
+    for plugin_directory in plugin_directories:
+        resolved_directory = plugin_directory.resolve()
+        if resolved_directory not in entries_by_source:
+            errors.append(
+                f"{marketplace_relative}: missing marketplace entry for "
+                f"{plugin_directory.relative_to(ROOT)}"
+            )
+
+    print(
+        f"Checked {len(plugin_directories)} plugin package(s) and "
+        "1 marketplace manifest."
+    )
 
 
 def validate_documents(errors: list[str]) -> None:

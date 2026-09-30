@@ -33,6 +33,7 @@ class ValidateSkillsTests(unittest.TestCase):
         self,
         name: str,
         *,
+        package: str = "openness_development",
         dependencies: str = "",
         body: str = "# Example\n",
     ) -> Path:
@@ -43,7 +44,7 @@ class ValidateSkillsTests(unittest.TestCase):
             else ""
         )
         return self.write(
-            f"skills/{name}/SKILL.md",
+            f"{package}/skills/{name}/SKILL.md",
             (
                 "---\n"
                 f"name: {name}\n"
@@ -54,26 +55,65 @@ class ValidateSkillsTests(unittest.TestCase):
             ),
         )
 
-    def write_manifests(self) -> None:
+    def write_approved_openness_skills(self, *, missing: str | None = None) -> None:
+        expected = VALIDATOR.EXPECTED_SKILLS_BY_PLUGIN["openness_development"]
+        for name in expected - ({missing} if missing else set()):
+            self.write_skill(name)
+
+    def write_manifests(
+        self,
+        package: str = "openness_development",
+        *,
+        plugin_name: str | None = None,
+    ) -> None:
+        if plugin_name is None:
+            plugin_name = VALIDATOR.EXPECTED_PLUGIN_IDENTITIES.get(
+                package,
+                (f"{package.replace('_', '-')}-kit", "1.0.0"),
+            )[0]
         manifest = {
             "$schema": VALIDATOR.PORTABLE_SCHEMA,
-            "name": VALIDATOR.EXPECTED_PLUGIN_NAME,
+            "name": plugin_name,
             "description": "Example plugin.",
-            "version": VALIDATOR.EXPECTED_PLUGIN_VERSION,
+            "version": "1.0.0",
             "author": {"name": "Example Team"},
             "license": "MIT",
             "keywords": ["example"],
         }
-        self.write("plugin.json", json.dumps(manifest))
+        self.write(f"{package}/plugin.json", json.dumps(manifest))
         self.write(
-            ".github/plugin/marketplace.json",
+            f"{package}/.github/plugin/plugin.json",
             json.dumps(
                 {
-                    "name": VALIDATOR.EXPECTED_MARKETPLACE_NAME,
-                    "owner": {"name": "Example Team"},
-                    "plugins": [{**manifest, "source": "."}],
+                    **{
+                        field: manifest[field]
+                        for field in (
+                            "name",
+                            "description",
+                            "author",
+                            "license",
+                            "keywords",
+                        )
+                    },
+                    "version": f"{manifest['version']}.0",
+                    "skills": ["skills/"],
                 }
             ),
+        )
+
+        marketplace_path = VALIDATOR.ROOT / ".github" / "plugin" / "marketplace.json"
+        if marketplace_path.exists():
+            marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+        else:
+            marketplace = {
+                "name": VALIDATOR.EXPECTED_MARKETPLACE_NAME,
+                "owner": {"name": "Example Team"},
+                "plugins": [],
+            }
+        marketplace["plugins"].append({**manifest, "source": package})
+        self.write(
+            ".github/plugin/marketplace.json",
+            json.dumps(marketplace),
         )
 
     def run_main(self) -> int:
@@ -82,7 +122,7 @@ class ValidateSkillsTests(unittest.TestCase):
 
     def test_nested_metadata_is_accepted(self):
         skill_path = self.write(
-            "skills/example-skill/SKILL.md",
+            "openness_development/skills/example-skill/SKILL.md",
             "---\n"
             "name: example-skill\n"
             "description: Example description.\n"
@@ -104,7 +144,7 @@ class ValidateSkillsTests(unittest.TestCase):
 
     def test_nonstandard_top_level_frontmatter_is_an_error(self):
         self.write(
-            "skills/example-skill/SKILL.md",
+            "openness_development/skills/example-skill/SKILL.md",
             "---\n"
             "name: example-skill\n"
             "description: Example description.\n"
@@ -114,7 +154,7 @@ class ValidateSkillsTests(unittest.TestCase):
         )
         errors = []
 
-        VALIDATOR.validate_skills(errors, [], expected_skills=None)
+        VALIDATOR.validate_skills(errors, [], expected_skills_by_plugin=None)
 
         self.assertTrue(
             any("unsupported skill frontmatter fields: depends_on" in error for error in errors),
@@ -122,7 +162,7 @@ class ValidateSkillsTests(unittest.TestCase):
         )
 
     def test_links_inside_code_are_ignored(self):
-        skill_path = self.write("skills/example-skill/SKILL.md", "")
+        skill_path = self.write("openness_development/skills/example-skill/SKILL.md", "")
         errors = []
         VALIDATOR.validate_links(
             skill_path,
@@ -135,38 +175,35 @@ class ValidateSkillsTests(unittest.TestCase):
 
     def test_zero_skills_is_an_error(self):
         errors = []
-        VALIDATOR.validate_skills(errors, [], expected_skills=None)
+        VALIDATOR.validate_skills(errors, [], expected_skills_by_plugin=None)
 
-        self.assertIn(
-            "no Agent Skills found under skills/*/SKILL.md",
-            errors,
-        )
+        self.assertIn("no plugin package directories found", errors)
         self.assertNotEqual(0, self.run_main())
 
     def test_missing_manifest_is_an_error(self):
-        for name in VALIDATOR.EXPECTED_SKILLS:
-            self.write_skill(name)
+        self.write_approved_openness_skills()
         errors = []
         VALIDATOR.validate_manifests(errors)
 
         self.assertIn(
-            "missing root Agent Plugins manifest: plugin.json",
+            f"missing Agent Plugins manifest: "
+            f"{Path('openness_development') / 'plugin.json'}",
             errors,
         )
         self.assertNotEqual(0, self.run_main())
 
     def test_missing_approved_skill_returns_nonzero(self):
-        missing = next(iter(VALIDATOR.EXPECTED_SKILLS))
-        for name in VALIDATOR.EXPECTED_SKILLS - {missing}:
-            self.write_skill(name)
+        missing = next(
+            iter(VALIDATOR.EXPECTED_SKILLS_BY_PLUGIN["openness_development"])
+        )
+        self.write_approved_openness_skills(missing=missing)
         self.write_manifests()
 
         self.assertNotEqual(0, self.run_main())
 
     def test_malformed_manifest_is_an_error(self):
-        for name in VALIDATOR.EXPECTED_SKILLS:
-            self.write_skill(name)
-        self.write("plugin.json", "{")
+        self.write_approved_openness_skills()
+        self.write("openness_development/plugin.json", "{")
         errors = []
         VALIDATOR.validate_manifests(errors)
 
@@ -177,8 +214,7 @@ class ValidateSkillsTests(unittest.TestCase):
         self.assertNotEqual(0, self.run_main())
 
     def test_broken_link_is_an_error(self):
-        for name in VALIDATOR.EXPECTED_SKILLS:
-            self.write_skill(name)
+        self.write_approved_openness_skills()
         self.write_manifests()
         self.write("README.md", "[Missing](missing.md)\n")
         errors = []
@@ -191,7 +227,7 @@ class ValidateSkillsTests(unittest.TestCase):
         self.assertNotEqual(0, self.run_main())
 
     def test_missing_dependency_is_an_error(self):
-        for name in VALIDATOR.EXPECTED_SKILLS:
+        for name in VALIDATOR.EXPECTED_SKILLS_BY_PLUGIN["openness_development"]:
             self.write_skill(
                 name,
                 dependencies="missing-skill" if name == "blocks" else "",
@@ -208,7 +244,7 @@ class ValidateSkillsTests(unittest.TestCase):
 
     def test_invalid_skill_frontmatter_does_not_crash(self):
         self.write(
-            "skills/example-skill/SKILL.md",
+            "openness_development/skills/example-skill/SKILL.md",
             (
                 "---\n"
                 "description: Example description.\n"
@@ -219,7 +255,7 @@ class ValidateSkillsTests(unittest.TestCase):
         )
         errors = []
 
-        VALIDATOR.validate_skills(errors, [], expected_skills=None)
+        VALIDATOR.validate_skills(errors, [], expected_skills_by_plugin=None)
 
         self.assertTrue(
             any("invalid or missing skill name" in error for error in errors),
@@ -234,7 +270,7 @@ class ValidateSkillsTests(unittest.TestCase):
         self.write_skill("first-skill", dependencies="second-skill")
         self.write_skill("second-skill", dependencies="first-skill")
         errors = []
-        VALIDATOR.validate_skills(errors, [], expected_skills=None)
+        VALIDATOR.validate_skills(errors, [], expected_skills_by_plugin=None)
 
         self.assertTrue(
             any("dependency cycle:" in error for error in errors),
@@ -255,26 +291,80 @@ class ValidateSkillsTests(unittest.TestCase):
         VALIDATOR.validate_manifests(errors)
 
         self.assertTrue(
-            any("plugin version differs" in error for error in errors),
+            any("plugin version differs from plugin.json" in error for error in errors),
+            errors,
+        )
+
+    def test_internal_manifest_version_must_match_portable_version(self):
+        self.write_manifests()
+        internal_manifest_path = (
+            VALIDATOR.ROOT
+            / "openness_development"
+            / ".github"
+            / "plugin"
+            / "plugin.json"
+        )
+        internal_manifest = json.loads(
+            internal_manifest_path.read_text(encoding="utf-8")
+        )
+        internal_manifest["version"] = "2.0.0.0"
+        internal_manifest_path.write_text(
+            json.dumps(internal_manifest),
+            encoding="utf-8",
+            newline="\n",
+        )
+        errors = []
+
+        VALIDATOR.validate_manifests(errors)
+
+        self.assertTrue(
+            any(
+                "plugin version differs from portable plugin.json" in error
+                for error in errors
+            ),
             errors,
         )
 
     def test_valid_minimal_repository_passes(self):
-        self.write_skill("example-skill")
-        self.write_manifests()
+        self.write_skill("example-skill", package="example_plugin")
+        self.write_manifests(package="example_plugin")
         errors = []
         warnings = []
 
         VALIDATOR.validate_skills(
             errors,
             warnings,
-            expected_skills=None,
+            expected_skills_by_plugin=None,
         )
         VALIDATOR.validate_manifests(errors)
         VALIDATOR.validate_documents(errors)
 
         self.assertEqual([], errors)
         self.assertEqual([], warnings)
+
+    def test_multiple_plugin_packages_are_supported(self):
+        self.write_approved_openness_skills()
+        self.write_manifests()
+        self.write_skill("other-skill", package="other_development")
+        self.write_manifests(
+            package="other_development",
+            plugin_name="other-development-kit",
+        )
+
+        self.assertEqual(0, self.run_main())
+
+    def test_every_plugin_package_must_be_listed_in_marketplace(self):
+        self.write_approved_openness_skills()
+        self.write_manifests()
+        self.write_skill("other-skill", package="other_development")
+        errors = []
+
+        VALIDATOR.validate_manifests(errors)
+
+        self.assertTrue(
+            any("missing marketplace entry for other_development" in error for error in errors),
+            errors,
+        )
 
 
 if __name__ == "__main__":

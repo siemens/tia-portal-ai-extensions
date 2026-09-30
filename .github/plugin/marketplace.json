@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "tia-portal-openness-development-kit",
-      "source": ".",
+      "source": "openness_development",
       "description": "Utilities for TIA Portal Openness",
       "version": "1.0.0",
       "author": {
