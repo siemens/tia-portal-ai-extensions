@@ -131,6 +131,27 @@ When plugging hardware into StartDrive (SINAMICS) devices, the correct parent ob
 
    A successful motor plug can auto-create additional sibling encoder-related `DeviceItem`s on that rack (for example measuring-system / encoder-evaluation items). For those motor families, no separate encoder `PlugNew` call is needed or possible. This integrated-encoder rule does not apply to separately projected third-party or external encoders: configure those with `HardwareProjection.GetCurrentEncoderConfiguration` and `ProjectEncoderConfiguration`. Validate motor placement by recursively searching **that axis rack** for the motor `TypeIdentifier`, rather than searching the whole CU device where both axes may use the same motor type.
 
+### ⚠️ Drive TypeIdentifier Resolution and Double Motor Module Naming (verified live, TIA V21 / Startdrive)
+
+Use these rules when the TypeIdentifiers come from an export (for example AML) or from confirmed article numbers rather than from a catalog pick:
+
+- **Wildcard article positions:** catalog TypeIdentifiers use `x` wildcard positions in the article number. A concrete article such as `...-0AA0` maps to its wildcard form `...-0Axx`. This applies to all hardware and does not depend on the firmware version, which is a separate `/V…` part of the identifier.
+  - Keep any trailing family qualifier, for example `OrderNumber:6SL3040-1MA01-0Axx/V5.2.3/S120`. One Control Unit article can serve several product families, and the qualifier selects one.
+  - For the CU310, `System:Device.S120PN` (export) and `System:Device.S120` (created by TIA) are equivalent.
+- **Booksize Motor Modules need a catalog variant suffix.** Motor Modules exist in S120, S220 and possibly other drive families, so expect this wherever booksize modules are used:
+  - Single Motor Module example: `OrderNumber:6SL3120-1TE23-0AA4//10005`.
+  - Double Motor Module example: `OrderNumber:6SL3120-2TE21-0AA4//10013`.
+  - Active Line Modules (for example `6SL3130-7TE23-6AA3`) need none.
+  - The suffix is a per-article catalog variant, **not** a drive-object number. If it is unknown, try `PlugNew` with `//10000`…`//10035` in a scratch project and keep the one that succeeds. TIA stores the result as `...-0Axx//100nn`.
+- **`HardwareCatalog.Find` can miss concrete booksize articles** (`6SL3130`/`6SL3120`) and generic encoder entries. `PlugNew` with the exact identifier still works.
+- **DRIVE-CLiQ motors** (for example `OrderNumber:1FK7063-xAF71-xCGx`) auto-create `Measuring system_1` (`XE…//DRIVE-CLIQ.244`) and `Encoder evaluation_1`.
+- **Generic SSI encoders:** an exported `<article>//SSI.9999` maps to `OrderNumber:XExxxxx-xxxxx-xxxx//SSI.9999`. Keep the interface/code suffix exactly. `//SSI-Geber.0` also plugs successfully but is a **different** encoder, and a wrong plug can only be corrected with `ChangeType`/`Delete`.
+- **Plug order determines DRIVE-CLiQ topology.** Plug in the intended chain order (CU → infeed → SMM → DMM …), then verify (see [`networks-and-drivecliq`](../networks-and-drivecliq/SKILL.md)).
+- **One Double Motor Module is one `PlugNew` and yields two axis racks.** Do not plug a source-model DMM twice.
+  - Half 1 keeps the given module name and holds X200/X202 (`Port_1`/`Port_3`).
+  - Half 2's module item is auto-named `Motor Module_1` and holds X201/X203 (`Port_2`/`Port_4`). Route X201/X203 links to half 2.
+  - Rename half 2's module item to the same module name, so both halves match the same-name rule used to identify the second drive object (see [`drive-objects`](../drive-objects/SKILL.md) rule 3).
+
 ### Devices.CreateWithItem — Create Device from Catalog
 
 **Description:** Create a new device instance directly from a hardware catalog `TypeIdentifier`.

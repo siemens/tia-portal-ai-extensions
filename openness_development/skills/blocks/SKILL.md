@@ -102,6 +102,24 @@ externalSource.Delete();
 - Do NOT call `Import` on an `.scl` file — that API is XML-only.
 - Do NOT use `ExternalSources.CreateFromFile` + `GenerateBlocksFromSource` on `.s7dcl` — use `ImportFromDocuments`.
 
+**Rerunnable SCL import and identifying the generated blocks:**
+
+```csharp
+var before = blockGroup.Blocks.Select(b => b.Name).ToHashSet();
+var sourceName = Path.GetFileNameWithoutExtension(path);
+externalSourceGroup.ExternalSources.Find(sourceName)?.Delete(); // stale source from a previous run
+var src = externalSourceGroup.ExternalSources.CreateFromFile(sourceName, path);
+src.GenerateBlocksFromSource();
+src.Delete();
+var created = blockGroup.Blocks.Where(b => !before.Contains(b.Name)).ToList();
+```
+
+- A leftover external source makes reruns fail with "already exists". Delete stale sources before creating and remove the source after generation.
+- One SCL file can declare several blocks:
+  - 0 new blocks: the source compiled into an existing block; do not rename anything.
+  - 1 new block: it may be renamed via `SetAttribute("Name", target)`.
+  - More than 1 new block: never rename; each keeps its declared name.
+
 ### Import Order Rule
 
 When importing multiple block types in one operation, always follow this order to avoid unresolved-type errors:
@@ -111,6 +129,14 @@ When importing multiple block types in one operation, always follow this order t
 3. **OBs and Instance DBs** — may reference FBs/FCs
 
 Violating this order causes `EngineeringException` ("Unresolved type reference") at import or compile time.
+
+For mixed generation (library placement plus content created from scratch), extend the order:
+
+1. Place library-sourced elements before from-scratch elements. Library content may define the types that the from-scratch code uses.
+2. Within each group: UDTs, then tag tables/tags (tag data types may reference UDTs), then FB/FC/OB/global DBs.
+3. Create instance DBs last, after their FBs exist.
+
+Ordering violations often surface only at compile time, not at the Openness call.
 
 ### Compile and Export Block
 

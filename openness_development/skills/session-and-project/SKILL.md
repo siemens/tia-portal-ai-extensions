@@ -260,6 +260,10 @@ tia.Projects.Open(fileInfo);
 - `ProjectCollection.Open(FileInfo)` — opens the project file and returns a `Project`
 - `Project` — represents an open TIA Portal project
 
+**Prefer `OpenWithUpgrade`:** `tia.Projects.OpenWithUpgrade(fileInfo)` also opens projects created with an older TIA Portal version, where `Open` fails on a version mismatch. It behaves the same for same-version projects. For archives, `Projects.RetrieveWithUpgrade(archive, targetDir)` is the upgrading counterpart of `Retrieve`; `GlobalLibraries.OpenWithUpgrade` follows the same rule.
+
+The upgrade happens in place on disk, so do not point it at a reference project that must stay unchanged. Open a copy instead.
+
 ---
 
 ### Retrieve Project from Archive (.zap)
@@ -347,6 +351,7 @@ public Task CloseAsync()
 - Close the project only when `_ownsProject`; dispose the portal only when `_ownsTiaPortalInstance`.
 - An attached portal can be user-owned while a project opened by this application is application-owned; close only the latter during teardown.
 - `PlugNew`, `CreateWithItem`, and other mutations stay **in memory** until `Project.Save()` is called. Save explicitly before teardown when this application owns and intends to persist its changes; shared teardown must not save automatically.
+- A `Siemens.Automation.ObjectFrame.FileStorage.Server.exe` child process can keep running after `TiaPortal.Dispose()` (observed in V19). Tooling that must leave no processes behind should record the PID and start time of the TIA processes it spawned, including their descendants, and terminate only those identities. Never terminate by process name.
 
 ---
 
@@ -371,6 +376,10 @@ var project2 = tia2.Projects.Open(secondProjectFile);
 **Key Types and Methods:**
 - `TiaPortal` — each instance is an independent portal process; one project per instance
 - `EngineeringTargetInvocationException` — thrown when opening a second project into an already-occupied portal instance
+
+**Notes:**
+- The exception surfaces only on the second `Open`/`OpenWithUpgrade`/`RetrieveWithUpgrade` call, after the slow first open has completed. It can look timing- or path-related; it is neither.
+- For cross-project comparison (`HardwareObject.CompareTo(IHardwareCompareTarget)`, software `CompareTo`), the compare target must come from a second `TiaPortal` instance that holds the other project. See also [`change-detection`](../change-detection/SKILL.md).
 
 ---
 

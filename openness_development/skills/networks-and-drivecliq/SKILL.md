@@ -211,6 +211,34 @@ plcPort.ConnectToPort(drivePort);
 - On multi-port devices, one port can already report a connection because of the device's internal switch. Pick the external port with `ConnectedPorts.Count == 0`, not merely the first one returned.
 - Compare port proxies with `.Equals(...)`, not `ReferenceEquals(...)`, when checking whether two `NetworkPort` references represent the same underlying port.
 
+### Startdrive auto-wires DRIVE-CLiQ while plugging (verified live, TIA V21)
+
+Plugging S120 components creates DRIVE-CLiQ links automatically, in plug order:
+
+| Port | Auto-linked to |
+|---|---|
+| CU X100 | The first module (for example ALM X200) |
+| Each new module | The previous module's X201 |
+| SMM X202 | Encoder X500 |
+| Motor encoders | The Motor Module's X202/X203 |
+
+Plug in the intended chain order. Read `ConnectedPorts` on every DRIVE-CLiQ port **before** connecting anything and connect only the missing links. `ConnectToPort` refuses ports that already have a partner, so correct a wrong auto-link with `DisconnectFromPort` first. A CU310 SSI encoder on the onboard interface needs no DRIVE-CLiQ link.
+
+### Interface naming, PN device names and IO-system numbers (verified live, TIA V21)
+
+- **Interface names:** TIA default names differ from the hardware labels. Examples: `PROFINET interface_1` and `PROFINET interface GBIT_3` on CPUs, `PROFINET interface` on a CU, `PN-IO` on a GSD head, `PROFINET interface X1` on a PN/PN coupler.
+  - Renaming the interface `DeviceItem.Name` to the label (X1, X150 …) is safe: subnet, IO-system and port connections survive.
+  - Ports keep `Port_1`/`Port_2`.
+- **PN device names:** `PnDeviceName` is read-only until `PnDeviceNameAutoGeneration = false` has been set **in a separate, earlier call**.
+- **Node names:** CPU interface nodes are named after the interface (`X1`/`X2`); device interface nodes are named `IE1`.
+- **IO connectors:** a device PN interface exposes **two** `IoConnectors`. Index 1 is the shared-device/I-device connector, so use `IoConnectors[0]` for a normal IO-device assignment.
+- **IO-system numbers:** `IoSystem.Number` is ReadWrite and defaults to `100` on every controller. Set it explicitly when the specification defines a number.
+- **One controller per IO system:**
+  - An `IoSystem` can only be created through `IoController.CreateIoSystem(name)`, and `IoController.IoSystem` holds a single IO system.
+  - `IoSystem` exposes no controller collection, and the API has no call that attaches a second controller to an existing IO system.
+  - So if a source model lists the same IO-system name under two CPUs, it describes two IO systems, or one entry is wrong. Confirm which controller owns it.
+- **Project-level subnets:** besides `node.CreateAndConnectToSubnet(name)`, `project.Subnets.Create(typeIdentifier, name)` creates a subnet that nodes then join with `ConnectToSubnet`. There is no single-argument overload. Read the type identifier from an existing subnet's `TypeIdentifier` rather than guessing it.
+
 ## Quick Reference
 
 | Method/Pattern | Purpose |

@@ -114,6 +114,26 @@ obj.SetAttributes(new Dictionary<string, object>
 - Device-specific hard-crash exclusions and the evidence required before adding them are documented in [`crash-diagnosis`](../crash-diagnosis/SKILL.md); per-name `GetAttributes(names)` remains the recommended snapshot pattern.
 - When diagnosing crash-risk services or attributes on specific device families, keep the skip-list / breadcrumb strategy from [`crash-diagnosis`](../crash-diagnosis/SKILL.md) alongside your batching logic.
 
+### Do NOT use `GetAttributes(AttributeAccessOptions)` for snapshots
+
+`IEngineeringObject.GetAttributes(AttributeAccessOptions)` (`[Flags]` `None`, `ReadOnly`, `WriteOnly`, `ReadWrite`) returns names and values in one call and looks like the ideal fast path. Measured on a TIA V21 project and diffed against a known-good snapshot, it is not a safe bulk-read path:
+
+1. With `None`, attributes are dropped (lossy).
+2. The output is not equivalent to `GetAttributes(names)`:
+   - Enum values such as `Access`, `MemoryLayout`, `ProgrammingLanguage` and `Classification` are serialized differently.
+   - The attribute set differs: it adds navigators (`Container`, `Items`, `Ports`, `Nodes`, `IoSystems`, `Interface`, `CommentML`) and drops others (`SharedDeviceAssignmentTarget`).
+3. There is no net speedup. The dominant cost, objects with thousands of attributes such as drive objects, stays on the per-attribute path.
+
+Matching the correct attribute set requires `GetAttributeInfos()`, which is exactly what the overload was meant to avoid.
+
+### Validate every read optimization by output parity
+
+Diff any change meant to speed up reads against a known-good snapshot of the same project. A faster read that changes the output is a regression, not an optimization. For example, a per-CLR-type attribute-name cache looked faster but was slower, because batch faults triggered per-attribute fallback, and it produced wrong output.
+
+Measured on one V21 project:
+- Batched per-object `GetAttributes(names)` cut wall-clock time by about 38%.
+- A per-instance `Name`/`TypeIdentifier` memo removed about half of the calls.
+
 ### Re-fetch Objects Fast — ObjectIdentifierProvider (V21+)
 
 **Description:** `ObjectIdentifierProvider` gives each engineering object a stable, project-unique ID. Use it to re-fetch the same object later — even after closing and reopening the project — instead of re-walking the whole tree to relocate it.

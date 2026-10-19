@@ -148,6 +148,11 @@ When walking a device hierarchy to find the correct `DeviceItem` to call `GetSer
 - **HM classification:** if `DeviceItem.Classification == DeviceItemClassifications.HM`, it is a Control Unit head module — inspect its sibling `System:Rack*` items on the same parent `Device` and select the one whose container/children match the target component.
 - If you do not yet know which component owns the target `DriveObject`, search or aggregate across **every** matching rack container instead of assuming there is one shared container for the whole CU device.
 
+**Drive-object names (verified live, TIA V21):**
+- `DriveObject` has no `Name` attribute, only `DriveObjectNumber`. The DO name shown in Startdrive is the `Name` of the owning `System:Rack*` `DeviceItem`. That `Name` is ReadWrite, so you rename a DO through its rack.
+- The CU DO lives on the rack `"Control Unit"` (`System:Rack.S120`), not on the CU module item, which has no `DriveObjectContainer`.
+- The infeed DO lives on `Infeed_1` and axes live on `Drive axis_N`, including the second half of a Double Motor Module.
+
 ---
 
 ### 3. Double-MoMo: the `_2` name suffix selects the second drive object

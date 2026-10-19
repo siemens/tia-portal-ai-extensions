@@ -108,6 +108,16 @@ var cpu = device.DeviceItems.Single(x => x.Classification == DeviceItemClassific
 - `DeviceItem.Classification` — categorizes the device item type
 - `DeviceItemClassifications.CPU` — constant for CPU classification
 
+**Find `PlcSoftware` from a `Device`:** `SoftwareContainer` is a `DeviceItem` service, so `Device.GetService<SoftwareContainer>()` returns null. The CPU item may be nested, so recurse:
+
+```csharp
+static PlcSoftware FindPlcSoftware(Device d) =>
+    d.DeviceItems.Select(FindPlcSoftware).FirstOrDefault(s => s != null);
+static PlcSoftware FindPlcSoftware(DeviceItem di) =>
+    di.GetService<SoftwareContainer>()?.Software as PlcSoftware
+    ?? di.DeviceItems.Select(FindPlcSoftware).FirstOrDefault(s => s != null);
+```
+
 ### Get NetworkInterface Service
 
 **Description:** Obtain the `NetworkInterface` service from a device item (e.g., PROFINET interface module) to configure network settings. Check `InterfaceType` to verify the interface is Ethernet-capable.
@@ -133,6 +143,19 @@ var nwItf = deviceItem.GetService<NetworkInterface>() is NetworkInterface nw && 
 - Do **not** try to create PROFINET interface or port `DeviceItem`s explicitly; they already exist immediately after `CreateWithItem`.
 - Recurse through `device.DeviceItems` after placement to find the auto-created items you want to configure via `GetService<NetworkInterface>()`, `GetService<NetworkPort>()`, or other services.
 - Only user-added extensions beyond the base unit (additional modules, optional boards, rack-inserted hardware) need explicit placement calls.
+- A PN/PN coupler (for example `6ES7 158-3AD10-0XA0`) is one device with both halves. Its two bus adapters can carry the same name and position. Tell the X1 and X2 sides apart by their parent (`Container`), not by name.
+
+### Configuration Phase Order (Hardware Side)
+
+Verified in live V21 builds:
+
+1. Create hardware before software.
+2. Create subnets.
+3. Configure nodes in this order: IP address, then `PnDeviceNameAutoGeneration = false`, then `PnDeviceName`.
+4. Create IO systems (set `Number` if specified), then connect IO devices.
+5. Create port-to-port topology links (Startdrive DRIVE-CLiQ links are auto-created; see [`networks-and-drivecliq`](../networks-and-drivecliq/SKILL.md)).
+6. Set the remaining generic attributes after all objects exist.
+7. Stamp custom identities (`CustomIdentityProvider`) last, in a final sweep.
 
 ### Create and Connect to Subnet
 

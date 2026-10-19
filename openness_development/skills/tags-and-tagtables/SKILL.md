@@ -88,6 +88,20 @@ var connectedTag = plcSoftware.TagTableGroup.TagTables
 **Key Types and Methods:**
 - `PlcTagCollection.Find(string)` — returns the tag with the specified name or `null`
 
+### Create Tag Tables and Tags Idempotently
+
+```csharp
+var table = group.TagTables.Find(tableName) ?? group.TagTables.Create(tableName);
+table.Tags.Find("Speed")?.Delete();               // idempotent regeneration
+var tag = table.Tags.Create("Speed", "Int", "%MW100");
+```
+
+**Key points:**
+- `PlcTagComposition.Create(name, dataTypeName, logicalAddress)`. The address format is `%<area><byte>[.<bit>]`, for example `%I187.0`, `%Q10.0`, `%MW100`, `%M50.3`.
+- Tag names are unique per PLC **across all tag tables**. `Tags.Create` throws "An attempt was made to create an object that already exists" on a clash in any table, so include the table name in diagnostics.
+- To find a table anywhere below a `PlcTagTableGroup`, recurse through `group.Groups`. Search one scope only (PLC root **or** a SW-Unit's tag-table group), because SW-Units have isolated groups (see [`sw-units`](../sw-units/SKILL.md)).
+- Not every tag attribute applies to every tag. Wrap optional per-attribute `SetAttribute` calls in try/catch, log the failure and continue, rather than aborting a whole table.
+
 ### Create and Manage User Constants
 
 **Description:** User constants are named values stored in tag tables, usable in PLC code and array bounds. Use `Find` before `Create` to avoid duplicates.
