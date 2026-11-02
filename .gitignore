@@ -3,3 +3,42 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .venv/
+
+# Visual Studio and .NET build output
+.vs/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+TestResults/
+
+# IDE user-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.DotSettings.user
+launchSettings.json
+
+# Local VS Code workspace for this repository
+/.vscode/
+
+# JetBrains IDE user-specific state
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries/
+.idea/**/shelf/
+.idea/**/aws.xml
+.idea/**/contentModel.xml
+.idea/**/dataSources.local.xml
+.idea/**/httpRequests/
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
