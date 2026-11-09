@@ -154,6 +154,47 @@ class ValidateSkillsTests(unittest.TestCase):
 
         self.assertEqual([], errors)
 
+    def test_unresolved_root_alias_preserves_broken_link_classification(self):
+        canonical_root = VALIDATOR.ROOT.resolve()
+        (canonical_root / "alias").mkdir()
+        VALIDATOR.ROOT = canonical_root / "alias" / ".."
+        document = self.write("README.md", "[Missing](missing.md)\n")
+        errors = []
+
+        VALIDATOR.validate_links(document, document.read_text(encoding="utf-8"), errors)
+
+        self.assertEqual(["README.md: broken relative link: missing.md"], errors)
+
+    def test_unresolved_root_alias_accepts_internal_resource(self):
+        canonical_root = VALIDATOR.ROOT.resolve()
+        (canonical_root / "alias").mkdir()
+        VALIDATOR.ROOT = canonical_root / "alias" / ".."
+        skill_path = self.write("skill/SKILL.md", "`assets/example.txt`")
+        self.write("skill/assets/example.txt", "example")
+        errors = []
+
+        VALIDATOR.validate_resources(
+            skill_path,
+            skill_path.read_text(encoding="utf-8"),
+            errors,
+        )
+
+        self.assertEqual([], errors)
+
+    def test_unresolved_root_alias_still_rejects_link_escape(self):
+        canonical_root = VALIDATOR.ROOT.resolve()
+        (canonical_root / "alias").mkdir()
+        VALIDATOR.ROOT = canonical_root / "alias" / ".."
+        document = self.write("README.md", "[Outside](../outside.md)\n")
+        errors = []
+
+        VALIDATOR.validate_links(document, document.read_text(encoding="utf-8"), errors)
+
+        self.assertEqual(
+            ["README.md: relative link leaves repository: ../outside.md"],
+            errors,
+        )
+
     def test_zero_skills_is_an_error(self):
         errors = []
         VALIDATOR.validate_skills(errors, [], expected_skills_by_plugin=None)

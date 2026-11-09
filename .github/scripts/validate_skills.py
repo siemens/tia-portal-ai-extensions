@@ -211,6 +211,7 @@ def parse_frontmatter(
 
 
 def validate_links(path: Path, text: str, errors: list[str]) -> None:
+    resolved_root = ROOT.resolve()
     prose = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     for match in LINK_RE.finditer(prose):
@@ -225,7 +226,7 @@ def validate_links(path: Path, text: str, errors: list[str]) -> None:
         target = unquote(target.split("#", 1)[0])
         resolved = (path.parent / target).resolve()
         try:
-            resolved.relative_to(ROOT)
+            resolved.relative_to(resolved_root)
         except ValueError:
             errors.append(
                 f"{path.relative_to(ROOT)}: relative link leaves repository: "
@@ -239,6 +240,7 @@ def validate_links(path: Path, text: str, errors: list[str]) -> None:
 
 
 def validate_resources(path: Path, text: str, errors: list[str]) -> None:
+    resolved_root = ROOT.resolve()
     prose = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     for match in RESOURCE_RE.finditer(prose):
         raw_target = match.group(1)
@@ -250,7 +252,7 @@ def validate_resources(path: Path, text: str, errors: list[str]) -> None:
             continue
         for resource in matches:
             try:
-                resource.resolve().relative_to(ROOT)
+                resource.resolve().relative_to(resolved_root)
             except ValueError:
                 errors.append(
                     f"{path.relative_to(ROOT)}: bundled resource leaves "
