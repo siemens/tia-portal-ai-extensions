@@ -1,6 +1,6 @@
 ---
 name: global-library
-description: TIA Portal GlobalLibrary object model — traversal, element placement, type classification, MasterCopy routing, library file handling (.zap/.zal), and post-placement rename. Use when writing or reviewing C# code that opens a GlobalLibrary, traverses TypeFolder or MasterCopyFolder, places library elements into PLCs, classifies LibraryTypeVersion subclasses, or renames placed elements.
+description: TIA Portal GlobalLibrary object model — traversal, element placement, type classification, MasterCopy routing, library file handling (.al/.zal), and post-placement rename. Use when writing or reviewing C# code that opens a GlobalLibrary, traverses TypeFolder or MasterCopyFolder, places library elements into PLCs, classifies LibraryTypeVersion subclasses, or renames placed elements.
 metadata:
   siemens-depends-on: "openness-base, devices-and-hardware, engineering-objects"
 ---
@@ -44,33 +44,26 @@ These containers are completely separate in API, hierarchy, and semantics.
 
 ---
 
-## 2. Opening a Library — .zap vs .zal
+## 2. Opening a Library — .al vs .zal
 
-Global libraries come in two file formats. The extension suffix is the TIA Portal version number (e.g. `.zap21`, `.zal21`).
+Global libraries come in two file formats. The extension suffix is the TIA Portal version number (e.g. `.al21`, `.zal21`). A `.zapXX` file is a project archive, not a global library.
 
 | Extension | Meaning | How to open |
 |---|---|---|
-| `.zapXX` | Unarchived (unpacked) library — ready to use | `portal.GlobalLibraries.OpenWithUpgrade(new FileInfo(path))` |
+| `.alXX` | Unarchived (unpacked) library — ready to use | `portal.GlobalLibraries.OpenWithUpgrade(new FileInfo(path))` |
 | `.zalXX` | Archived (packed) library — must be dearchived first | `portal.GlobalLibraries.Retrieve(new FileInfo(zalPath), new DirectoryInfo(tempDir), OpenMode.ReadOnly)` |
 
 **Rules:**
 
-1. **Always use `OpenWithUpgrade`** (not `Open`) for `.zap` files — it silently upgrades the library format if created by an older TIA Portal version.
+1. **Always use `OpenWithUpgrade`** (not `Open`) for `.al` files — it silently upgrades the library format if created by an older TIA Portal version.
 2. **`.zal` files must be dearchived** via `GlobalLibraries.Retrieve`. The method extracts the library into the target directory and returns it already opened — no additional `Open` call is needed.
-3. **Check for an already-open library first** (by comparing `GlobalLibrary.Path.FullName`) before calling any open method to avoid opening the same library twice.
+3. **Check for an already-open `.al` library first** (by comparing `GlobalLibrary.Path.FullName`) before calling `OpenWithUpgrade` to avoid opening the same library twice. For `.zal`, use an original-path cache as described below.
 
 ```csharp
 private GlobalLibrary OpenLibrary(TiaPortal portal, string absoluteFilePath)
 {
-	// Deduplication check
-	var existing = portal.GlobalLibraries
-		.OfType<GlobalLibrary>()
-		.FirstOrDefault(l => string.Equals(l.Path.FullName, absoluteFilePath,
-			StringComparison.OrdinalIgnoreCase));
-	if (existing != null) return existing;
-
 	var fileInfo = new FileInfo(absoluteFilePath);
-	if (fileInfo.Extension.StartsWith(".zal", StringComparison.OrdinalIgnoreCase))
+	if (HasVersionedExtension(fileInfo.Extension, ".zal"))
 	{
 		var tempDir = new DirectoryInfo(Path.Combine(
 			Path.GetTempPath(), "Libraries",
@@ -79,8 +72,25 @@ private GlobalLibrary OpenLibrary(TiaPortal portal, string absoluteFilePath)
 		return portal.GlobalLibraries.Retrieve(fileInfo, tempDir, OpenMode.ReadOnly) as GlobalLibrary;
 	}
 
+	if (!HasVersionedExtension(fileInfo.Extension, ".al"))
+		throw new ArgumentException(
+			$"Unsupported global library extension '{fileInfo.Extension}'. Expected .alXX or .zalXX.",
+			nameof(absoluteFilePath));
+
+	// Deduplicate unarchived libraries by their runtime path.
+	var existing = portal.GlobalLibraries
+		.OfType<GlobalLibrary>()
+		.FirstOrDefault(l => string.Equals(l.Path.FullName, absoluteFilePath,
+			StringComparison.OrdinalIgnoreCase));
+	if (existing != null) return existing;
+
 	return portal.GlobalLibraries.OpenWithUpgrade(fileInfo) as GlobalLibrary;
 }
+
+private static bool HasVersionedExtension(string extension, string prefix) =>
+	extension.Length > prefix.Length &&
+	extension.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+	extension.Substring(prefix.Length).All(char.IsDigit);
 ```
 
 ---
@@ -378,7 +388,7 @@ When a caller supplies additional inline tags/constants on top of a library-plac
 
 | Goal | API |
 |---|---|
-| Open `.zap` library | `portal.GlobalLibraries.OpenWithUpgrade(fileInfo)` |
+| Open `.al` library | `portal.GlobalLibraries.OpenWithUpgrade(fileInfo)` |
 | Open `.zal` library | `portal.GlobalLibraries.Retrieve(fileInfo, tempDir, OpenMode.ReadOnly)` |
 | Enumerate library type folders | `GlobalLibrary.TypeFolder.Folders` |
 | Enumerate types in folder (direct only) | `LibraryTypeFolder.Types` |

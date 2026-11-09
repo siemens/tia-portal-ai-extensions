@@ -55,7 +55,7 @@ This skill answers **discovery/meta questions** about the TIA Portal Openness pl
 | `simatic-sd` | SIMATIC SD block document format (.s7dcl/.s7res), export/import, network insertion, LAD/FBD/SCL detection |
 | `plc-safety-administration` | Fail-safe PLC config via `SafetyAdministration`, `AssignmentOfBlockNumbers`, `RuntimeGroup` |
 | `technology-objects` | Creating/finding/configuring Technology Objects (axes) for motion control |
-| `global-library` | GlobalLibrary traversal, MasterCopy/type placement, library file (.zap/.zal) handling, post-placement rename |
+| `global-library` | GlobalLibrary traversal, MasterCopy/type placement, library file (.al/.zal) handling, post-placement rename |
 | `libraries-and-alarms` | Global libraries, master copies, alarm text lists, safety administration, runtime groups, unit providers |
 | `security` | UMAC custom roles, project users, device function rights, master passwords, CPU protection/access level |
 
