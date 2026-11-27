@@ -30,6 +30,15 @@ copilot plugin marketplace add siemens/tia-portal-ai-extensions
 copilot plugin install tia-portal-openness-development-kit@tia-portal-ai-extensions
 ```
 
+Inside an interactive Copilot CLI session, use `/plugin` with the same
+subcommands (`marketplace`, `install`, `list`, `update`, `uninstall`) instead of
+`copilot plugin`:
+
+```text
+/plugin marketplace add siemens/tia-portal-ai-extensions
+/plugin install tia-portal-openness-development-kit@tia-portal-ai-extensions
+```
+
 To browse the marketplace or confirm what's installed:
 
 ```shell
