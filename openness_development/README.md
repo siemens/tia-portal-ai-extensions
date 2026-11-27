@@ -31,6 +31,15 @@ The supported installation path uses the marketplace catalog in this repository.
    In an interactive Copilot CLI session, run `/skills list` and confirm that
    the plugin's skills are available.
 
+Inside an interactive Copilot CLI session, you can run the same `marketplace`,
+`install`, `list`, `update`, and `uninstall` subcommands with `/plugin` instead
+of `copilot plugin`:
+
+```text
+/plugin marketplace add siemens/tia-portal-ai-extensions
+/plugin install tia-portal-openness-development-kit@tia-portal-ai-extensions
+```
+
 ### Update
 
 ```shell
